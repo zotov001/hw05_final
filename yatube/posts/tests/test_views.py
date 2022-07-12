@@ -2,21 +2,21 @@ import shutil
 import tempfile
 
 from django import forms
+from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.cache import cache
+from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.conf import settings
-from django.core.cache import cache
 
 from posts.models import Comment, Group, Post, Follow
 
 User = get_user_model()
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
-NUM_POSTS_FIRST_PAGE = 10
-NUM_POSTS_LAST_PAGE = 3
 NUM_OF_POST = 0
+NUM_POSTS_LAST_PAGE = 3
+NUM_POSTS_FIRST_PAGE = 10
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
@@ -79,7 +79,9 @@ class PostViewTest(TestCase):
             'posts/create_post.html', 'posts:post_edit',
             {'post_id': cls.post.id}
         )
-        cls.follow = ('posts/follow.html', 'posts:follow_index', None)
+        cls.follow_index = ('posts/follow.html', 'posts:follow_index', None)
+        cls.follow = ('posts:profile_follow', None)
+        cls.unfollow = ('posts:profile_unfollow', None)
         cls.templates_pages_for_authorized = (
             cls.index,
             cls.group_list,
@@ -209,7 +211,7 @@ class PostViewTest(TestCase):
                 self.assertEqual(len(
                     response.context['page_obj']), NUM_POSTS_FIRST_PAGE)
                 response_for_last = self.authorized_client.get(
-                    rev_template + '?page=2')
+                    f"{rev_template}{'?page=2'}")
                 self.assertEquals(len(
                     response_for_last.context['page_obj']),
                     NUM_POSTS_LAST_PAGE
@@ -217,15 +219,16 @@ class PostViewTest(TestCase):
 
     def test_index_cache_correct(self):
         """Кэш index."""
+        index = self.index[1]
         cache_post = Post.objects.create(author=self.user, text='Пост кэш')
         content_after_create = self.authorized_client.get(
-            reverse(self.index[1])).content
+            reverse(index)).content
         cache_post.delete()
         content_after_delete = self.authorized_client.get(
-            reverse(self.index[1])).content
+            reverse(index)).content
         cache.clear()
         content_after_clear = self.authorized_client.get(
-            reverse(self.index[1])).content
+            reverse(index)).content
         self.assertEqual(
             content_after_delete, content_after_create
         )
@@ -240,24 +243,27 @@ class PostViewTest(TestCase):
             text='Тестовый пост подписки',
             author=self.author_f
         )
-        response = self.authorized_client.get(reverse(self.follow[1]))
+        response = self.authorized_client.get(reverse(self.follow_index[1]))
         len_correct = len(response.context['page_obj'])
         self.assertEqual(
             response.context['page_obj'].object_list[1].author.id,
             self.author_f.id)
-        response = self.authorized_client1.get(reverse(self.follow[1]))
+        response = self.authorized_client1.get(reverse(self.follow_index[1]))
         self.assertNotEqual(
             len(response.context['page_obj']), len_correct)
 
     def test_following(self):
-        """Проверка подписки/отписки."""
+        """Проверка подписки."""
         response = self.authorized_client.get(reverse(
-            'posts:profile_follow',
-            kwargs={'username': self.author_f.username})
-        )
-        response_unfollow = self.authorized_client.get(reverse(
-            'posts:profile_unfollow',
+            self.follow[0],
             kwargs={'username': self.author_f.username})
         )
         self.assertRedirects(response, '/profile/author_follow/')
+
+    def test_following(self):
+        """Проверка отписки."""
+        response_unfollow = self.authorized_client.get(reverse(
+            self.unfollow[0],
+            kwargs={'username': self.author_f.username})
+        )
         self.assertRedirects(response_unfollow, '/profile/author_follow/')

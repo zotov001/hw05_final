@@ -1,13 +1,13 @@
 import shutil
 import tempfile
 
-from ..forms import PostForm
-from django.test import Client, TestCase, override_settings
-from django.urls import reverse
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.conf import settings
+from django.test import Client, override_settings, TestCase
+from django.urls import reverse
 
+from ..forms import PostForm
 from posts.models import Group, Post
 
 User = get_user_model()
@@ -63,6 +63,8 @@ class PostCreateTest(TestCase):
             test_post.author.username, self.post.author.username)
         self.assertEqual(
             test_post.group.title, self.post.group.title)
+        self.assertEqual(
+            test_post.image.name, self.post.image.name)
 
     @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
     def test_create_post(self):
@@ -80,8 +82,6 @@ class PostCreateTest(TestCase):
             Post.objects.count(), posts_count + 1)
         test_post = response.context['page_obj'].object_list[1]
         self.template_test(test_post, form_data)
-        self.assertEqual(
-            test_post.image.name, self.post.image.name)
 
     def test_edit_post(self):
         """Проверка изменения записи в БД."""
