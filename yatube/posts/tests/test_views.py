@@ -219,16 +219,13 @@ class PostViewTest(TestCase):
 
     def test_index_cache_correct(self):
         """Кэш index."""
-        index = self.index[1]
+        index = reverse(self.index[1])
         cache_post = Post.objects.create(author=self.user, text='Пост кэш')
-        content_after_create = self.authorized_client.get(
-            reverse(index)).content
+        content_after_create = self.authorized_client.get(index).content
         cache_post.delete()
-        content_after_delete = self.authorized_client.get(
-            reverse(index)).content
+        content_after_delete = self.authorized_client.get(index).content
         cache.clear()
-        content_after_clear = self.authorized_client.get(
-            reverse(index)).content
+        content_after_clear = self.authorized_client.get(index).content
         self.assertEqual(
             content_after_delete, content_after_create
         )
@@ -254,16 +251,25 @@ class PostViewTest(TestCase):
 
     def test_following(self):
         """Проверка подписки."""
+        follower = Follow.objects.filter(user=self.user, author=self.author_f)
+        if follower.exists():
+            follower.delete()
+        follow_count_befor = Follow.objects.count()
         response = self.authorized_client.get(reverse(
             self.follow[0],
             kwargs={'username': self.author_f.username})
         )
+        follow_count_after = Follow.objects.count()
         self.assertRedirects(response, '/profile/author_follow/')
+        self.assertNotEqual(follow_count_befor, follow_count_after)
 
-    def test_following(self):
+    def test_unfollowing(self):
         """Проверка отписки."""
+        follow_count_befor = Follow.objects.count()
         response_unfollow = self.authorized_client.get(reverse(
             self.unfollow[0],
             kwargs={'username': self.author_f.username})
         )
+        follow_count_after = Follow.objects.count()
         self.assertRedirects(response_unfollow, '/profile/author_follow/')
+        self.assertNotEqual(follow_count_befor, follow_count_after)
